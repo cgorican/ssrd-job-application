@@ -11,11 +11,13 @@ Applications reads warnings and saves:
 
 ## Database Tables
 <details><summary>Warning</summary>
+
 - id
 - areaDesc
 - onset
 - severity
 - author_id
+
 </details>
 
 <details><summary>Author</summary>
