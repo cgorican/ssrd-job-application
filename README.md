@@ -21,31 +21,41 @@ Applications reads warnings and saves:
 </details>
 
 <details><summary>Author</summary>
+
 - id
 - name
 - url*
+
 </details>
 
 ## Paths
 <details><summary>GET</summary>
+
 - Author
 - Author/:id
 - Parse
 - Warning
 - Warning/:severity
+
 </details>
 
 <details><summary>POST</summary>
+
 - Author
 - Warning
+
 </details>
 
 <details><summary>PUT</summary>
+
 - Author
 - Warning
+
 </details>
 
 <details><summary>DELETE</summary>
+
 - Author/:id
 - Warning/:id
+
 </details>
