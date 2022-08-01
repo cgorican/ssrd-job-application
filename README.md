@@ -7,16 +7,16 @@ Applications reads warnings and saves:
 - region (areaDesc)
 - onset (when the warning comes into effect)
 - severity
-- name of the author
+- Author(name, url)
 
 ## Database Tables
 <details><summary>Warning</summary>
 
 - id
-- areaDesc
+- region
 - onset
 - severity
-- author_id
+- author_id*
 
 </details>
 

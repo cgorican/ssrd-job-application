@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SSRD.Models;
+using SSRD.Data;
 using HtmlAgilityPack;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -18,6 +19,15 @@ namespace SSRD.Controllers
     [ApiController]
     public class ParseController : ControllerBase
     {
+        private readonly DataContext _context;
+        private readonly ILogger<ParseController> _logger;
+
+        public ParseController(ILogger<ParseController> logger, DataContext context)
+        {
+            _logger = logger;
+            _context = context;
+        }
+
         [HttpGet]
         public async Task<IActionResult> Get()
         {
@@ -33,58 +43,77 @@ namespace SSRD.Controllers
                 XmlNodeList entries = doc.GetElementsByTagName("entry");
                 foreach(XmlNode entry in entries)
                 {
-                    string newAreDesc = String.Empty;
+                    string newRegion = String.Empty;
                     string newSeverity = String.Empty;
                     DateTime? newOnset = null;
                     string newAuthorName = String.Empty;
                     string newAuthorURL = String.Empty;
                     foreach(XmlNode props in entry.ChildNodes)
                     {
+                        // Looping through properties
                         if(props.Name.ToLower().Contains("areadesc"))
                         {
-                            //Console.WriteLine("AreaDesc:\t" + props.InnerText);
-                            newAreDesc = props.InnerText;
+                            newRegion = props.InnerText;
+                        }
+                        else if (props.Name.ToLower().Contains("severity"))
+                        {
+                            newSeverity = props.InnerText;
                         }
                         else if (props.Name.ToLower().Contains("onset"))
                         {
-                            //Console.WriteLine("Onset:\t" + props.InnerText);
                             newOnset = DateTime.Parse(props.InnerText);
-                        }
-                        else if(props.Name.ToLower().Contains("severity"))
-                        {
-                            //Console.WriteLine("Severity:\t" + props.InnerText);
-                            newSeverity = props.InnerText;
                         }
                         else if(props.Name.ToLower().Contains("author"))
                         {
                             XmlNodeList authorInfo = props.ChildNodes;
-                            if(authorInfo.Count == 2)
+                            foreach(XmlNode info in authorInfo)
                             {
-                                newAuthorName = authorInfo[0].InnerText;
-                                newAuthorURL = authorInfo[1].InnerText;
-                                //Console.WriteLine("Author:\t" + newAuthorName + '\t' + newAuthorURL);
+                                if(info.Name.ToLower().Contains("name"))
+                                {
+                                    newAuthorName = info.InnerText;
+                                }
+                                else if(info.Name.ToLower().Contains("uri"))
+                                {
+                                    newAuthorURL = info.InnerText;
+                                }
                             }
                         }
                     }
-                    // new Warning
-                    Warning tmpWarning = new Warning
+                    // Check for existing author
+                    var author = _context.Authors.FirstOrDefault(a => a.Name.ToLower() == newAuthorName.ToLower() &&
+                                                         (a.URL.ToLower() == newAuthorURL.ToLower()));
+                    if(author == null)
                     {
-                        AreaDesc = newAreDesc,
-                        Onset = (DateTime)newOnset,
+                        author = new Author
+                        {
+                            Name = newAuthorName,
+                            URL = newAuthorURL
+                        };
+                        _context.Authors.Add(author);
+                        _context.SaveChanges();
+                    }
+                    // Adding new warning
+                    var _warning = new Warning
+                    {
+                        Region = newRegion,
                         Severity = newSeverity,
-                        //AuthorId = null
+                        //onset
+                        AuthorId = author.Id,
                     };
-                    // add to Database
-                    break;
+                    if (newOnset != null)
+                        _warning.Onset = (DateTime)newOnset;
+                    _context.Warnings.Add(_warning);
+                    _context.SaveChanges();
                 }
+                var _warnings = _context.Warnings.ToList();
+                var _authors = _context.Warnings.ToList();
+                return Ok(_warnings);
             }
             catch (Exception err)
             {
                 //Console.WriteLine(err.Message);
                 return StatusCode(500);
             }
-
-            return Ok();
         }
     }
 }
