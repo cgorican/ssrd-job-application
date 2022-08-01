@@ -1,7 +1,6 @@
-# Task for job application at SSRD.io
+# SSRD.io job application
 
-.NET Core web application that reads data from the [website](https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-austria) and stores it in a SQLite database.
-The project can be run within the Docker container.
+ASP.NET Core web application that reads data from the [website](https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-austria) and stores it in a SQLite database.  <br/>The project can be run within the Docker container.
 
 Applications reads warnings and saves:
 - region (areaDesc)
