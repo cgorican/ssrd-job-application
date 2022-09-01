@@ -12,13 +12,13 @@ using System.IO;
 using System.Xml;
 using System.Xml.XPath;
 using System.Xml.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace SSRD.Controllers
 {
-    [Route("[controller]")]
-    [ApiController]
-    public class ParseController : ControllerBase
+    public class ParseController : BaseController
     {
+        private const string URL = "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-austria";
         private readonly DataContext _context;
         private readonly ILogger<ParseController> _logger;
 
@@ -29,11 +29,11 @@ namespace SSRD.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get()
+        public async Task<IActionResult> ScrapeWarnings()
         {
+            _logger.LogInformation("Scrapping weather warnings");
             try
             {
-                const string URL = "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-austria";
                 HttpClient client = new HttpClient();
                 var response = await client.GetStringAsync(URL);
 
@@ -80,8 +80,10 @@ namespace SSRD.Controllers
                         }
                     }
                     // Check for existing author
-                    var author = _context.Authors.FirstOrDefault(a => a.Name.ToLower() == newAuthorName.ToLower() &&
-                                                         (a.URL.ToLower() == newAuthorURL.ToLower()));
+                    var author = await _context.Authors
+                        .Where(a => a.Name.ToLower() == newAuthorName.ToLower() &&
+                                    a.URL.ToLower() == newAuthorURL.ToLower())
+                        .FirstOrDefaultAsync();
                     if(author == null)
                     {
                         author = new Author
@@ -103,11 +105,17 @@ namespace SSRD.Controllers
                     if (newOnset != null)
                         _warning.Onset = (DateTime)newOnset;
                     _context.Warnings.Add(_warning);
-                    _context.SaveChanges();
+                    int changes = await _context.SaveChangesAsync();
+                    if (changes <= 0)
+                    {
+                        _logger.LogError("Failed to add scraped warnings - database error.");
+                        return StatusCode(500);
+                    }
                 }
-                var _warnings = _context.Warnings.ToList();
-                var _authors = _context.Warnings.ToList();
-                return Ok(_warnings);
+                var warnings = await _context.Warnings
+                    .Include(x => x.Author)
+                    .ToListAsync();
+                return Ok(warnings);
             }
             catch (Exception err)
             {

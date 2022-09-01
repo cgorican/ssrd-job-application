@@ -2,12 +2,12 @@
 using Microsoft.AspNetCore.Mvc;
 using SSRD.Models;
 using SSRD.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace SSRD.Controllers
 {
-    [Route("[controller]")]
-    [ApiController]
-    public class WarningController : ControllerBase
+    
+    public class WarningController : BaseController
     {
         private readonly DataContext _context;
         private readonly ILogger<WarningController> _logger;
@@ -19,118 +19,120 @@ namespace SSRD.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<Warning>>> Get()
+        public async Task<ActionResult<List<Warning>>> GetWarnings()
         {
-            try
-            {
-                var warnings = _context.Warnings.ToList();
-                var authors = _context.Authors.ToList();
-                return Ok(warnings);
-            }
-            catch (Exception e)
-            {
-                return StatusCode(500);
-            }
+            _logger.LogInformation("Retrieving all warnings.");
+
+            List<Warning> warnings = await _context.Warnings
+                    .Include(x => x.Author)
+                    .ToListAsync();
+
+            return Ok(warnings);
         }
-        [HttpGet("{severity}")]
-        public async Task<ActionResult<List<Warning>>> Get(string severity)
+        [HttpGet]
+        [Route("{severity}")]
+        public async Task<ActionResult<List<Warning>>> GetBySeverity([FromRoute] string severity)
         {
-            try
-            {
-                var warnings = _context.Warnings.ToList();
-                var authors = _context.Authors.ToList();
-                var severityWarnings = warnings.FindAll(w => w.Severity.ToLower() == severity.ToLower());
-                return Ok(severityWarnings);
-            }
-            catch (Exception e)
-            {
-                return StatusCode(500);
-            }
+            _logger.LogInformation("Retrieving warnings with severity = {}.", severity);
+
+            List<Warning> warnings = await _context.Warnings
+                .Include(x => x.Author)
+                .Where(w => w.Severity.ToLower() == severity.ToLower())
+                .ToListAsync();
+            
+            return Ok(warnings);
         }
         [HttpPost]
-        public async Task<ActionResult<Warning>> AddWarning(Warning warning)
+        public async Task<ActionResult<Warning>> AddWarning([FromBody] Warning warningReq)
         {
-            var _warning = new Warning
+            _logger.LogInformation("Adding warning to database.");
+
+            var warning = new Warning
             {
-                Region = warning.Region,
-                Severity = warning.Severity,
-                Onset = warning.Onset,
-                AuthorId = warning.AuthorId
+                Region = warningReq.Region,
+                Severity = warningReq.Severity,
+                Onset = warningReq.Onset,
+                AuthorId = warningReq.AuthorId
             };
 
-            if ((_warning.Region != null && _warning.Region != String.Empty) &&
-                (_warning.Severity != null && _warning.Severity != String.Empty))
+            if ((warning.Region != null && warning.Region != String.Empty) &&
+                (warning.Severity != null && warning.Severity != String.Empty))
             {
-                try
-                {
-                    _context.Warnings.Add(_warning);
-                    _context.SaveChanges();
-                    return Ok(_warning);
-                }
-                catch (Exception e)
-                {
-                    return StatusCode(500);
-                }
+                _context.Warnings.Add(warning);
             }
-            else if ((_warning.Region == null || _warning.Region == String.Empty) ||
-                     (_warning.Severity == null || _warning.Severity == String.Empty))
+
+            int changes = await _context.SaveChangesAsync();
+            if (changes <= 0)
             {
-                return BadRequest();
-            }
-            else
-            {
+                _logger.LogError("Failed to add a warning - database error.");
                 return StatusCode(500);
             }
+            return Ok(warning);
         }
         [HttpPut]
-        public async Task<ActionResult<Warning>> UpdateWarning(Warning warning)
+        public async Task<ActionResult<Warning>> UpdateWarning([FromBody] Warning warningReq)
         {
-            var _warning = _context.Warnings.FirstOrDefault(w => w.Id == warning.Id);
-            if (_warning == null)
+            _logger.LogInformation("Updating warning {@obj}.", new {
+                warningId=warningReq.Id
+            });
+
+            Warning? warning = await _context.Warnings
+                .Where(w => w.Id == warningReq.Id)
+                .FirstOrDefaultAsync();
+
+            if (warning == null)
             {
+                _logger.LogError("Warning not found, {@obj}", new {
+                    warningId = warningReq.Id
+                });
                 return NotFound();
             }
-            else
+
+            if (warningReq.Region != null && warningReq.Region != String.Empty)
+                warning.Region = warningReq.Region;
+            if (warning.Severity != null && warning.Severity != String.Empty)
+                warning.Severity = warningReq.Severity;
+            if (warning.Onset != null)
+                warning.Onset = warningReq.Onset;
+
+            _context.Warnings.Update(warning);
+            int changes = await _context.SaveChangesAsync();
+            if (changes <= 0)
             {
-                if (warning.Region != null && warning.Region != String.Empty)
-                    _warning.Region = warning.Region;
-                if (_warning.Severity != null && _warning.Severity != String.Empty)
-                    _warning.Severity = warning.Severity;
-                if (_warning.Onset != null)
-                    _warning.Onset = warning.Onset;
-                try
-                {
-                    _context.Warnings.Update(_warning);
-                    _context.SaveChanges();
-                    return Ok(_warning);
-                }
-                catch (Exception e)
-                {
-                    return StatusCode(500);
-                }
+                _logger.LogError("Failed to update a warning - database error.");
+                return StatusCode(500);
             }
+
+            return Ok(warning);
         }
-        [HttpDelete("{id}")]
-        public async Task<ActionResult<Warning>> Delete(int id)
+        [HttpDelete]
+        [Route("{id}")]
+        public async Task<ActionResult<Warning>> Delete([FromRoute] int id)
         {
-            var _warning = _context.Warnings.FirstOrDefault(w => w.Id == id);
-            if (_warning == null)
+            _logger.LogInformation("Deleting warning {@obj}", new {
+                warningId = id
+            });
+
+            var warning = await _context.Warnings
+                .Where(w => w.Id == id)
+                .FirstOrDefaultAsync();
+
+            if (warning == null)
             {
+                _logger.LogError("Warning not found. {@obj}", new {
+                    warningId = id
+                });
                 return NotFound();
             }
-            else
+
+            _context.Warnings.Remove(warning);
+            int changes = await _context.SaveChangesAsync();
+            if (changes <= 0)
             {
-                try
-                {
-                    _context.Warnings.Remove(_warning);
-                    _context.SaveChanges();
-                    return Ok(_warning);
-                }
-                catch (Exception e)
-                {
-                    return StatusCode(500);
-                }
+                _logger.LogError("Failed to delete the warning - database error.");
+                return StatusCode(500);
             }
+            return Ok(warning);
         }
     }
 }

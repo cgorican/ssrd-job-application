@@ -2,12 +2,11 @@
 using Microsoft.AspNetCore.Mvc;
 using SSRD.Models;
 using SSRD.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace SSRD.Controllers
 {
-    [Route("[controller]")]
-    [ApiController]
-    public class AuthorController : ControllerBase
+    public class AuthorController : BaseController
     {
         private readonly DataContext _context;
         private readonly ILogger<AuthorController> _logger;
@@ -19,98 +18,124 @@ namespace SSRD.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<Author>>> Get()
+        public async Task<ActionResult<List<Author>>> GetAuthors()
         {
-            try
-            {
-                var authors = _context.Authors.ToList();
-                return Ok(authors);
-            }
-            catch (Exception e)
-            {
-                return StatusCode(500);
-            }
-            
+            _logger.LogInformation("Retrieving authors.");
+
+            var authors = await _context.Authors
+                    .ToListAsync();
+
+            return Ok(authors);            
         }
-        [HttpPost]
-        public async Task<ActionResult<Author>> AddAuthor(Author author)
+
+        [HttpGet]
+        [Route("{id:int}")]
+        public async Task<ActionResult<List<Author>>> GetAuthor([FromRoute]int id)
         {
-            var _author = new Author
+            _logger.LogInformation("Retrieving authors.");
+
+            var author = await _context.Authors
+                .Where(x => x.Id == id)
+                .FirstOrDefaultAsync();
+            
+            if(author == null)
             {
-                Name = author.Name,
-                URL = author.URL
+                return NotFound();
+            }
+
+            return Ok(author);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<Author>> AddAuthor([FromBody] Author authorReq)
+        {
+            _logger.LogInformation("Adding author to database.");
+
+            var authorDb = await _context.Authors
+                .Where(x => x.Name == authorReq.Name &&
+                            x.URL == authorReq.URL)
+                .FirstOrDefaultAsync();
+
+            if (authorDb != null)
+            {
+                _logger.LogError("User already exists.");
+                return Forbid();
+            }
+
+            var author = new Author
+            {
+                Name = authorReq.Name,
+                URL = authorReq.URL
             };
 
-            if ((_author.Name != null && _author.Name != String.Empty) && (_author.URL != null))
+            if ((author.Name != null && author.Name != String.Empty) && (author.URL != null))
             {
-                try
-                {
-                    _context.Authors.Add(_author);
-                    _context.SaveChanges();
-                    return Ok(_author);
-                }
-                catch(Exception e)
-                {
-                    return StatusCode(500);
-                }
-            }
-            else if(_author.Name == null || _author.Name == String.Empty)
-            {
-                return BadRequest();
-            }
-            else
-            {
-                return StatusCode(500);
-            }
-        }
-        [HttpPut]
-        public async Task<ActionResult<Author>> UpdateAuthor(Author author)
-        {
-            var _author = _context.Authors.FirstOrDefault(a => a.Id == author.Id);
-            if (_author == null)
-            {
-                return NotFound();
-            }
-            else
-            {
-                if(author.Name != null && author.Name != String.Empty)
-                    _author.Name = author.Name;
-                if (author.URL != null && author.URL != String.Empty)
-                    _author.URL = author.URL;
-                try
-                {
-                    _context.Authors.Update(_author);
-                    _context.SaveChanges();
-                    return Ok(_author);
-                }
-                catch (Exception e)
-                {
-                    return StatusCode(500);
-                }
+                _context.Authors.Add(author);
             }
 
+            int changes = await _context.SaveChangesAsync();
+            if(changes <= 0)
+            {
+                _logger.LogError("Failed to add an author - database error.");
+                return StatusCode(500);
+            }
+            return Ok(author);
         }
-        [HttpDelete("{id}")]
-        public async Task<ActionResult<Author>> Delete(int id)
+        [HttpPut]
+        public async Task<ActionResult<Author>> UpdateAuthor([FromBody] Author authorReq)
         {
-            var _author = _context.Authors.FirstOrDefault(a => a.Id == id);
-            if (_author == null)
+            _logger.LogInformation("Updating author {@obj}", new {
+                authorId=authorReq.Id
+            });
+
+            var author = await _context.Authors
+                .Where(a => a.Id == authorReq.Id)
+                .FirstOrDefaultAsync();
+
+            if (author == null)
             {
                 return NotFound();
             }
             else
             {
-                try
-                {
-                    _context.Authors.Remove(_author);
-                    _context.SaveChanges();
-                    return Ok(_author);
-                }
-                catch (Exception e)
-                {
-                    return StatusCode(500);
-                }
+                if(authorReq.Name != null && authorReq.Name != String.Empty)
+                    author.Name = authorReq.Name;
+                if (authorReq.URL != null && authorReq.URL != String.Empty)
+                    author.URL = authorReq.URL;
             }
+            _context.Authors.Update(author);
+
+            int changes = await _context.SaveChangesAsync();
+            if (changes <= 0)
+            {
+                _logger.LogError("Failed to update an author - database error.");
+                return StatusCode(500);
+            }
+            return Ok(author);
+        }
+        [HttpDelete]
+        [Route("{id:int}")]
+        public async Task<ActionResult<Author>> Delete([FromRoute] int id)
+        {
+            _logger.LogInformation("Deleting author {@obj}", new {
+                authorId = id
+            });
+
+            var author = await _context.Authors
+                .FirstOrDefaultAsync(a => a.Id == id);
+            if (author == null)
+            {
+                return NotFound();
+            }
+
+            _context.Authors.Remove(author);
+            int changes = await _context.SaveChangesAsync();
+            if (changes <= 0)
+            {
+                _logger.LogError("Failed to delete the author - database error.");
+                return StatusCode(500);
+            }
+            return Ok(author);
         }
     }
 }
