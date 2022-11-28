@@ -9,52 +9,35 @@ Applications reads warnings and saves:
 - Author(name, url)
 
 ## Database Tables
-<details><summary>Warning</summary>
-
-- id
-- region
-- onset
-- severity
-- author_id*
-
-</details>
-
-<details><summary>Author</summary>
-
-- id
-- name
-- url*
-
-</details>
-
-## Paths
-<details><summary>GET</summary>
-
-- Author
-- Author/:id
-- Parse
 - Warning
-- Warning/:severity
-
-</details>
-
-<details><summary>POST</summary>
-
+  - id: Int
+  - region: String
+  - onset: DateTime
+  - severity: Int
+  - author_id*
 - Author
-- Warning
+  - id: Int
+  - name: String
+  - url*: String
 
 </details>
 
-<details><summary>PUT</summary>
+## Endpoints
+### GET
+- /Author
+- /Author/:id
+- /Parse
+- /Warning
+- /Warning/:severity
 
-- Author
-- Warning
+### POST
+- /Author
+- /Warning
 
-</details>
+### PUT
+- /Author
+- /Warning
 
-<details><summary>DELETE</summary>
-
-- Author/:id
-- Warning/:id
-
-</details>
+### DELETE
+- /Author/:id
+- /Warning/:id
